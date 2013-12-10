@@ -1,6 +1,6 @@
 var nrrd = require('./nrrd.js');
 var fs = require('fs');
 
-var img = nrrd.parse(fs.readFileSync('example1.nrrd'));
+var data = nrrd.parse(fs.readFileSync('example2.nrrd'));
 
-console.log(img);
+console.log(data);

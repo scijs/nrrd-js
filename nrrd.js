@@ -7,7 +7,7 @@ var dataFileListRE = /^LIST(?: (\d+))?$/;
 
 // This expects an ArrayBuffer.
 module.exports.parse = function (buffer) {
-    var i, header, dataStart, ret = {data: undefined, keys: {}, version: undefined},
+    var i, header, dataStart, ret = {data: undefined/* parsed data */, buffer: undefined/* raw buffer holding data */, keys: {}, version: undefined},
         lines, match, match2, files,
         buf8 = new Uint8Array(buffer);
     // First find the separation between the header and the data (if there is one)
@@ -35,7 +35,7 @@ module.exports.parse = function (buffer) {
         header = String.fromCharCode.apply(null, buf8);
     } else {
         header = String.fromCharCode.apply(null, buf8.subarray(0,dataStart));
-        ret.data = buffer.slice(dataStart);
+        ret.buffer = buffer.slice(dataStart);
     }
     
     // Split header into lines, remove comments (and blank lines) and check magic.
@@ -81,6 +81,66 @@ module.exports.parse = function (buffer) {
         } else {
             throw new Error("Logic error in NRRD parser."); // This should never happen (unless the NRRD syntax is extended and the regexp is updated, but this section is not, or some other programmer error).
         }
+    }
+    
+    // Always necessary fields
+    if (ret.dimension===undefined) {
+        throw new Error("Dimension missing from NRRD file!");
+    } else if (ret.type===undefined) {
+        throw new Error("Type missing from NRRD file!");
+    } else if (ret.encoding===undefined) {
+        throw new Error("Encoding missing from NRRD file!");
+    } else if (ret.sizes===undefined) {
+        throw new Error("Sizes missing from NRRD file!");
+    }
+    
+    // Sometimes necessary fields
+    if (ret.type != 'block' && ret.type != 'int8' && ret.type != 'uint8'
+          && ret.encoding != 'ascii' && ret.endian === undefined) {
+        throw new Error("Endianness missing from NRRD file!");
+    } else if (ret.type == 'block' && ret.blockSize === undefined) {
+        throw new Error("Missing block size in NRRD file!");
+    }
+    
+    // Check dimension and per-axis field lengths
+    if (ret.dimension == 0) {
+        throw new Error("Zero-dimensional NRRD file?");
+    } else if (ret.dimension != ret.sizes.length) {
+        throw new Error("Length of 'sizes' is different from 'dimension' in an NRRD file!");
+    } else if (ret.spacings && ret.dimension != ret.spacings.length) {
+        throw new Error("Length of 'spacings' is different from 'dimension' in an NRRD file!");
+    } else if (ret.thicknesses && ret.dimension != ret.thicknesses.length) {
+        throw new Error("Length of 'thicknesses' is different from 'dimension' in an NRRD file!");
+    } else if (ret.axisMins && ret.dimension != ret.axisMins.length) {
+        throw new Error("Length of 'axis mins' is different from 'dimension' in an NRRD file!");
+    } else if (ret.axisMaxs && ret.dimension != ret.axisMaxs.length) {
+        throw new Error("Length of 'axis maxs' is different from 'dimension' in an NRRD file!");
+    } else if (ret.centers && ret.dimension != ret.centers.length) {
+        throw new Error("Length of 'centers' is different from 'dimension' in an NRRD file!");
+    } else if (ret.labels && ret.dimension != ret.labels.length) {
+        throw new Error("Length of 'labels' is different from 'dimension' in an NRRD file!");
+    } else if (ret.units && ret.dimension != ret.units.length) {
+        throw new Error("Length of 'units' is different from 'dimension' in an NRRD file!");
+    } else if (ret.kinds && ret.dimension != ret.kinds.length) {
+        throw new Error("Length of 'kinds' is different from 'dimension' in an NRRD file!");
+    }
+    
+    // "Parse" data
+    if (ret.buffer) {
+        switch(ret.encoding) {
+        case 'raw':
+            ret.data = parseNRRDRawData(ret.buffer, ret.type, ret.sizes, {
+                endian: ret.endian, blockSize: ret.blockSize
+            });
+            break;
+        case 'ascii':
+            ret.data = parseNRRDTextData(ret.buffer, ret.type, ret.sizes);
+            break;
+        default:
+            console.warn("Unsupported NRRD encoding: " + ret.encoding);
+        }
+    } else {
+        console.warn("No support for external data yet!");
     }
     
     return ret;
@@ -280,7 +340,7 @@ function parseNRRDEncoding(encoding) {
     case "txt":
     case "text":
     case "ascii":
-        return "text";
+        return "ascii";
     case "hex":
         return "hex";
     case "gz":
@@ -388,4 +448,190 @@ function parseNRRDKind(kind) {
     if (kindLC in NRRDKinds) return NRRDKinds[kindLC];
     console.warn("Unrecognized NRRD kind: " + kind);
     return kind;
+}
+
+var systemEndianness = (function() {
+    var buf = new ArrayBuffer(4),
+        intArr = new Uint32Array(buf),
+        byteArr = new Uint8Array(buf);
+    intArr[0] = 0x01020304;
+    if (byteArr[0]==1 && byteArr[1]==2 && byteArr[2]==3 && byteArr[3]==4) {
+        return 'big';
+    } else if (byteArr[0]==4 && byteArr[1]==3 && byteArr[2]==2 && byteArr[3]==1) {
+        return 'little';
+    }
+    console.warn("Unrecognized system endianness!");
+    return null;
+})();
+
+function parseNRRDRawData(buffer, type, sizes, options) {
+    var i, arr, view, totalLen = 1, endianFlag;
+    for(i=0; i<sizes.length; i++) {
+        if (sizes[i]<=0) throw new Error("Sizes should be a list of positive (>0) integers!");
+        totalLen *= sizes[i];
+    }
+    if (type == 'block') {
+        // Don't do anything special, just return the slice containing all blocks.
+        return buffer.slice(0,totalLen*options.blockSize);
+    } else if (type == 'int8' || type == 'uint8' || options.endian == systemEndianness) {
+        switch(type) {
+        case "int8":
+            checkSize(1);
+            return new Int8Array(buffer.slice(0,totalLen));
+        case "uint8":
+            checkSize(1);
+            return new Uint8Array(buffer.slice(0,totalLen));
+        case "int16":
+            checkSize(2);
+            return new Int16Array(buffer.slice(0,totalLen*2));
+        case "uint16":
+            checkSize(2);
+            return new Uint16Array(buffer.slice(0,totalLen*2));
+        case "int32":
+            checkSize(4);
+            return new Int32Array(buffer.slice(0,totalLen*4));
+        case "uint32":
+            checkSize(4);
+            return new Uint32Array(buffer.slice(0,totalLen*4));
+        //case "int64":
+        //    checkSize(8);
+        //    return new Int64Array(buffer.slice(0,totalLen*8));
+        //case "uint64":
+        //    checkSize(8);
+        //    return new Uint64Array(buffer.slice(0,totalLen*8));
+        case "float":
+            checkSize(4);
+            return new Float32Array(buffer.slice(0,totalLen*4));
+        case "double":
+            checkSize(8);
+            return new Float64Array(buffer.slice(0,totalLen*8));
+        default:
+            console.warn("Unsupported NRRD type: " + type + ", returning raw buffer.");
+            return undefined;
+        }
+    } else {
+        switch(options.endian) {
+        case 'big':
+            endianFlag = false;
+            break;
+        case 'little':
+            endianFlag = true;
+            break;
+        default:
+            console.warn("Unsupported endianness in NRRD file: " + options.endian);
+            return undefined;
+        }
+        view = new DataView(buffer);
+        switch(type) {
+        case "int8": // Note that here we do not need to check the size of the buffer, as the DataView.get methods should throw an exception if we read beyond the buffer.
+            arr = new Int8Array(totalLen);
+            for(i=0; i<totalLen; i++) {
+                arr[i] = view.getInt8(i);
+            }
+            return arr;
+        case "uint8":
+            arr = new Uint8Array(totalLen);
+            for(i=0; i<totalLen; i++) {
+                arr[i] = view.getUint8(i);
+            }
+            return arr;
+        case "int16":
+            arr = new Int16Array(totalLen);
+            for(i=0; i<totalLen; i++) {
+                arr[i] = view.getInt16(i*2);
+            }
+            return arr;
+        case "uint16":
+            arr = new Uint16Array(totalLen);
+            for(i=0; i<totalLen; i++) {
+                arr[i] = view.getUint16(i*2);
+            }
+            return arr;
+        case "int32":
+            arr = new Int32Array(totalLen);
+            for(i=0; i<totalLen; i++) {
+                arr[i] = view.getInt32(i*4);
+            }
+            return arr;
+        case "uint32":
+            arr = new Uint32Array(totalLen);
+            for(i=0; i<totalLen; i++) {
+                arr[i] = view.getUint32(i*4);
+            }
+            return arr;
+        //case "int64":
+        //    arr = new Int64Array(totalLen);
+        //    for(i=0; i<totalLen; i++) {
+        //        arr[i] = view.getInt64(i*8);
+        //    }
+        //    return arr;
+        //case "uint64":
+        //    arr = new Uint64Array(totalLen);
+        //    for(i=0; i<totalLen; i++) {
+        //        arr[i] = view.getUint64(i*8);
+        //    }
+        //    return arr;
+        case "float":
+            arr = new Float32Array(totalLen);
+            for(i=0; i<totalLen; i++) {
+                arr[i] = view.getFloat32(i*4);
+            }
+            return arr;
+        case "double":
+            arr = new Float64Array(totalLen);
+            for(i=0; i<totalLen; i++) {
+                arr[i] = view.getFloat64(i*8);
+            }
+            return arr;
+        default:
+            console.warn("Unsupported NRRD type: " + type + ", returning raw buffer.");
+            return undefined;
+        }
+    }
+    function checkSize(sizeOfType) {
+        if (buffer.byteLength<totalLen*sizeOfType) throw new Error("NRRD file does not contain enough data!");
+    }
+}
+
+var whitespaceDataValueListSeparatorRE = /[ \t\n\r\v\f]+/;
+function parseNRRDTextData(buffer, type, sizes) {
+    var i, buf8, str, strList, totalLen = 1;
+    for(i=0; i<sizes.length; i++) {
+        if (sizes[i]<=0) throw new Error("Sizes should be a list of positive (>0) integers!");
+        totalLen *= sizes[i];
+    }
+    buf8 = new Uint8Array(buffer);
+    str = String.fromCharCode.apply(null, buf8);
+    strList = str.split(whitespaceDataValueListSeparatorRE);
+    if (strList.length<totalLen) {
+        throw new Error("Not enough data in NRRD file!");
+    } else if (strList.length>totalLen) {
+        if (strList[0] == '') strList = strList.slice(1); // Strictly speaking the spec doesn't (explicitly) allow whitespace in front of the first number, but let's be lenient.
+        strList = strList.slice(0, totalLen);
+    }
+    switch(type) {
+    case "int8":
+        return new Int8Array(strList.map(parseNRRDInteger));
+    case "uint8":
+        return new Uint8Array(strList.map(parseNRRDInteger));
+    case "int16":
+        return new Int16Array(strList.map(parseNRRDInteger));
+    case "uint16":
+        return new Uint16Array(strList.map(parseNRRDInteger));
+    case "int32":
+        return new Int32Array(strList.map(parseNRRDInteger));
+    case "uint32":
+        return new Uint32Array(strList.map(parseNRRDInteger));
+    //case "int64":
+    //    return new Int64Array(strList.map(parseNRRDInteger));
+    //case "uint64":
+    //    return new Uint64Array(strList.map(parseNRRDInteger));
+    case "float":
+        return new Float32Array(strList.map(parseNRRDFloat));
+    case "double":
+        return new Float64Array(strList.map(parseNRRDFloat));
+    default:
+        console.warn("Unsupported NRRD type: " + type + ", returning raw buffer.");
+        return undefined;
+    }
 }

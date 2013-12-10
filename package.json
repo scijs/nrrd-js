@@ -1,6 +1,6 @@
 {
   "name": "nrrd-js",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "Handling NRRD files in Javascript.",
   "main": "nrrd.js",
   "scripts": {
@@ -12,7 +12,12 @@
   },
   "author": "Jasper van de Gronde",
   "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/jaspervdg/nrrd-js/issues"
+  },
   "devDependencies": {
     "tape": "~2.3.0"
+  },
+  "dependencies": {
   }
 }
