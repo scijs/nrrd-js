@@ -1,5 +1,6 @@
 var test = require('tape');
 var nrrd = require('./nrrd.js');
+var ndarray = require('ndarray');
 var fs = require('fs');
 
 test("binaryInlineFile", function (t) {
@@ -30,6 +31,24 @@ test("textInlineFile", function (t) {
     
     for(i=0; i<list.length; i++) {
         t.equal(file.data[i], list[i]);
+    }
+    
+    t.end();
+});
+
+test("ndarray", function (t) {
+    var file = nrrd.parse(fs.readFileSync('example2.nrrd')),
+        i, j, list = [[1,2,3], [65000,64000,63000], [10000,11000,12000], [4,5,6]],
+        arr = ndarray(file.data, file.sizes.slice().reverse());
+    
+    t.equal(file.dimension, 2);
+    t.equal(file.sizes[0], arr.shape[1]);
+    t.equal(file.sizes[1], arr.shape[0]);
+    
+    for(i=0; i<list.length; i++) {
+        for(j=0; j<list[i].length; j++) {
+            t.equal(arr.get(i,j), list[i][j]);
+        }
     }
     
     t.end();
