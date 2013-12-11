@@ -8,5 +8,6 @@ To use with [ndarray](https://github.com/mikolalysenko/ndarray), proceed as foll
 ```javascript
 var nrrdfile = nrrd.parse(...);
 var array = ndarray(nrrdfile.data, nrrdfile.sizes.slice().reverse());
-var minimalNrrdfileArrayBuffer = nrrd.serialize({data: array.data, sizes: array.shape.slice().reverse()}); // If array.data is something other than a typed array, you should specify the 'type'.
+var arrayBuffer = nrrd.serialize({data: array.data, sizes: array.shape.slice().reverse()});
+// If array.data is something other than a typed array, you should specify the 'type'.
 ```
