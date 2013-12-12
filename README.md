@@ -11,3 +11,4 @@ var array = ndarray(nrrdfile.data, nrrdfile.sizes.slice().reverse());
 var arrayBuffer = nrrd.serialize({data: array.data, sizes: array.shape.slice().reverse()});
 // If array.data is something other than a typed array, you should specify the 'type'.
 ```
+Note that the above serialization only works if the ndarray uses the default stride(s), if not, then you essentially need to copy the ndarray into a new one that does (or at least a new typed array).

@@ -1,6 +1,6 @@
 {
   "name": "nrrd-js",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Handling NRRD files in Javascript.",
   "main": "nrrd.js",
   "scripts": {

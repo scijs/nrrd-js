@@ -261,6 +261,10 @@ module.exports.parse = function (buffer) {
     var i, header, dataStart, ret = {data: undefined/* parsed data */, buffer: undefined/* raw buffer holding data */, keys: {}, version: undefined},
         lines, match, match2,
         buf8 = new Uint8Array(buffer);
+
+    // A work-around for incompatibilities between Node's Buffer and ArrayBuffer.
+    if (buf8.buffer !== buffer) buffer = buf8.buffer;
+
     // First find the separation between the header and the data (if there is one)
     // Note that we need to deal with with LF and CRLF as possible line endings.
     // Luckily this means the line always ends with LF, so we only need to consider
