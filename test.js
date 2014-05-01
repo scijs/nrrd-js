@@ -56,19 +56,21 @@ test("roundtrip", function (t) {
         i, list = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24];
     
     t.equal(file.type, 'uint8');
-    t.equal(file.dimension, 3);
-    t.equal(file.sizes.length, 3);
+    t.equal(file.dimension, 4);
+    t.equal(file.sizes.length, 4);
     t.equal(file.sizes[0], 4);
     t.equal(file.sizes[1], 3);
     t.equal(file.sizes[2], 2);
+    t.equal(file.sizes[3], 2);
     t.equal(file.space, "right-anterior-superior");
     t.ok(arrayEqual(file.spaceOrigin, [1.0,2.0,3.0]), "spaceOrigin should be equal to [1.0,2.0,3.0]");
-    t.ok(arrayEqual(file.spaceDirections, [[1.0,0.0,0.0],[0,0.5,0],[0,0,0.3]]), "spaceDirections should be equal to [[1.0,0,0],...]");
-    t.equal(file.data.length, 4*3*2);
-    t.equal(file.data.byteLength, 4*3*2);
+    t.ok(arrayEqual(file.spaceDirections, [[1.0,0.0,0.0],[0,0.5,0],[0,0,0.3],null]), "spaceDirections should be equal to [[1.0,0,0],...]");
+    t.equal(file.data.length, 4*3*2*2);
+    t.equal(file.data.byteLength, 4*3*2*2);
     
     for(i=0; i<list.length; i++) {
         t.equal(file.data[i], list[i]);
+        t.equal(file.data[i+list.length], list[i]);
     }
     
     t.end();
@@ -117,7 +119,7 @@ test("ndarray serialization", function (t) {
 function arrayEqual(a, b) {
   if (a.length === undefined || a.length !== b.length) return false;
   for(var i=0; i<a.length; i++) {
-    if (a[i].length !== undefined) {
+    if (a[i] instanceof Array) {
       if (!arrayEqual(a[i],b[i])) return false;
     } else {
       if (a[i]!==b[i]) return false;

@@ -422,19 +422,19 @@ function serializeField(prop, value, dimension, spaceDimension) {
     case 'spaceDirections':
         assert(value.length !== undefined && value.length === dimension, "Field " + prop + " should be a list with length equal to the dimension!");
         value.forEach(function (vec) {
-          assert(vec.length === spaceDimension, "The elements of field " + prop + " should be lists with length equal to the space dimension!");
-          vec.forEach(function (val) { assert((typeof val) == "number" || val instanceof Number, "The elements of field " + prop + " should be lists of numbers!"); });
+          assert(vec === null || (vec.length !== undefined && vec.length === spaceDimension), "The elements of field " + prop + " should be lists with length equal to the space dimension!");
+          if (vec !== null) vec.forEach(function (val) { assert((typeof val) == "number" || val instanceof Number, "The elements of field " + prop + " should be lists of numbers!"); });
         });
-        line = propNRRD + ": " + value.map(function(vec) { return "(" + vec.join(",") + ")"; }).join(" ");
+        line = propNRRD + ": " + value.map(function(vec) { return vec === null ? "none" : ("(" + vec.join(",") + ")"); }).join(" ");
         break;
     // Lists of vectors (space dimension sized)
     case 'measurementFrame':
         assert(value.length !== undefined && value.length === spaceDimension, "Field " + prop + " should be a list with length equal to the space dimension!");
         value.forEach(function (vec) {
-          assert(vec.length === spaceDimension, "The elements of field " + prop + " should be lists with length equal to the space dimension!");
-          vec.forEach(function (val) { assert((typeof val) == "number" || val instanceof Number, "The elements of field " + prop + " should be lists of numbers!"); });
+          assert(vec === null || (vec.length !== undefined && vec.length === spaceDimension), "The elements of field " + prop + " should be lists with length equal to the space dimension!");
+          if (vec !== null) vec.forEach(function (val) { assert((typeof val) == "number" || val instanceof Number, "The elements of field " + prop + " should be lists of numbers!"); });
         });
-        line = propNRRD + ": " + value.map(function(vec) { return "(" + vec.join(",") + ")"; }).join(" ");
+        line = propNRRD + ": " + value.map(function(vec) { return vec === null ? "none" : ("(" + vec.join(",") + ")"); }).join(" ");
         break;
     // One-of-a-kind fields
     case 'type':
@@ -614,6 +614,7 @@ function parseNRRDFloat(str) {
 }
 
 function parseNRRDVector(str) {
+    if (str == "none") return null;
     if (str.length<2 || str[0]!=="(" || str[str.length-1]!==")") throw new Error("Malformed NRRD vector: " + str);
     return str.slice(1, -1).split(",").map(parseNRRDFloat);
 }
