@@ -51,6 +51,25 @@ test("roundtrip", function (t) {
     for(i=0; i<list.length; i++) {
         t.equal(file.data[i], list[i]);
     }
+
+    var file = nrrd.parse(nrrd.serialize(nrrd.parse(fs.readFileSync('example4.nrrd')))),
+        i, list = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24];
+    
+    t.equal(file.type, 'uint8');
+    t.equal(file.dimension, 3);
+    t.equal(file.sizes.length, 3);
+    t.equal(file.sizes[0], 4);
+    t.equal(file.sizes[1], 3);
+    t.equal(file.sizes[2], 2);
+    t.equal(file.space, "right-anterior-superior");
+    t.ok(arrayEqual(file.spaceOrigin, [1.0,2.0,3.0]), "spaceOrigin should be equal to [1.0,2.0,3.0]");
+    t.ok(arrayEqual(file.spaceDirections, [[1.0,0.0,0.0],[0,0.5,0],[0,0,0.3]]), "spaceDirections should be equal to [[1.0,0,0],...]");
+    t.equal(file.data.length, 4*3*2);
+    t.equal(file.data.byteLength, 4*3*2);
+    
+    for(i=0; i<list.length; i++) {
+        t.equal(file.data[i], list[i]);
+    }
     
     t.end();
 });
@@ -76,8 +95,9 @@ test("ndarray", function (t) {
 test("ndarray serialization", function (t) {
     var i, j, list = [[1,2,3], [65000,64000,63000], [10000,11000,12000], [4,5,6]],
         arr1 = ndarray(new Uint16Array([1,2,3, 65000,64000,63000, 10000,11000,12000, 4,5,6]), [4,3]),
-        file = nrrd.parse(nrrd.serialize({data: arr1.data, sizes: arr1.shape.slice().reverse()})),
-        arr2 = ndarray(file.data, file.sizes.slice().reverse());;
+        serialized = nrrd.serialize({data: arr1.data, sizes: arr1.shape.slice().reverse()}),
+        file = nrrd.parse(serialized),
+        arr2 = ndarray(file.data, file.sizes.slice().reverse());
     
     t.equal(file.dimension, arr1.shape.length);
     t.equal(file.sizes[0], arr1.shape[1]);
@@ -89,6 +109,20 @@ test("ndarray serialization", function (t) {
             t.equal(arr1.get(i,j), arr2.get(i,j));
         }
     }
+    //console.log(String.fromCharCode.apply(null, new Uint8Array(serialized)));
     
     t.end();
 });
+
+function arrayEqual(a, b) {
+  if (a.length === undefined || a.length !== b.length) return false;
+  for(var i=0; i<a.length; i++) {
+    if (a[i].length !== undefined) {
+      if (!arrayEqual(a[i],b[i])) return false;
+    } else {
+      if (a[i]!==b[i]) return false;
+    }
+  }
+  return true;
+}
+
